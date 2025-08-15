@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import {
   View,
   Text,
@@ -10,14 +10,14 @@ import {
 } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
+import { AuthContext } from "../contexts/AuthContext";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Substitua por sua chave da RAWG API (https://rawg.io/apidocs)
 const RAWG_API_KEY = "2bf7427a54a148aa9674a33abf59fa0a";
+const UserContext = React.createContext();
 
-// Função para buscar imagem da RAWG
 async function fetchCapaRawg(nome) {
   try {
     const response = await fetch(
@@ -36,7 +36,6 @@ async function fetchCapaRawg(nome) {
   }
 }
 
-// Tela Jogos: lista e navegação
 function JogosScreen({ navigation }) {
   const [jogos, setJogos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +46,6 @@ function JogosScreen({ navigation }) {
         const res = await fetch("http://10.0.2.2/pibd/getJogos.php");
         const jogosData = await res.json();
 
-        // Buscar imagens para cada jogo
         const jogosComImagem = await Promise.all(
           jogosData.map(async (jogo) => {
             const capa = await fetchCapaRawg(jogo.nome);
@@ -101,7 +99,6 @@ function JogosScreen({ navigation }) {
   );
 }
 
-// Tela de detalhes do jogo
 function DetalhesJogo({ route }) {
   const { jogo } = route.params;
   return (
@@ -115,7 +112,6 @@ function DetalhesJogo({ route }) {
   );
 }
 
-
 function NoticiasScreen() {
   return (
     <View style={styles.center}>
@@ -124,14 +120,32 @@ function NoticiasScreen() {
   );
 }
 
-// Pilha para a aba Jogos, que inclui detalhes
 function JogosStack() {
+  const user = useContext(UserContext);
+
   return (
     <Stack.Navigator
-      screenOptions={{
+      screenOptions={({ navigation }) => ({
         headerStyle: { backgroundColor: "#3C1F6F" },
         headerTintColor: "#F7C21E",
-      }}
+        headerLeft: () =>
+          user ? (
+            <TouchableOpacity
+              style={styles.userInfoContainer}
+              onPress={() => navigation.navigate("Perfil")}
+            >
+              <Image
+                source={
+                  user.avatar
+                    ? { uri: user.avatar }
+                    : require("../assets/user.jpg") // padrão se não tiver avatar
+                }
+                style={styles.userAvatar}
+              />
+              <Text style={styles.userName}>{user.nome}</Text>
+            </TouchableOpacity>
+          ) : null,
+      })}
     >
       <Stack.Screen
         name="JogosLista"
@@ -143,28 +157,40 @@ function JogosStack() {
         component={DetalhesJogo}
         options={{ title: "Detalhes do Jogo" }}
       />
+      <Stack.Screen
+        name="Perfil"
+        component={require("./Perfil").default}
+        options={{ title: "Meu Perfil" }}
+      />
     </Stack.Navigator>
   );
 }
 
-// Navigator principal com tabs
 export default function PaginaInicial() {
+  const { user } = useContext(AuthContext); // pega usuário logado do contexto
+
+  // Aqui definimos um avatar padrão caso o usuário não tenha
+  const userComAvatar = user
+    ? { ...user, avatar: user.avatar || "https://uploads.jovemnerd.com.br/wp-content/uploads/2023/10/004__108uf17.webp" }
+    : null;
+
   return (
-    <Tab.Navigator 
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: { backgroundColor: "#3C1F6F" },
-        tabBarActiveTintColor: "#F7C21E",
-        tabBarInactiveTintColor: "#D9D9D9",
-      }}
-    >
-      <Tab.Screen name="Jogos" component={JogosStack} />
-      <Tab.Screen name="Notícias" component={NoticiasScreen} />
-    </Tab.Navigator>
+    <UserContext.Provider value={userComAvatar}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: { backgroundColor: "#3C1F6F" },
+          tabBarActiveTintColor: "#F7C21E",
+          tabBarInactiveTintColor: "#D9D9D9",
+        }}
+      >
+        <Tab.Screen name="Jogos" component={JogosStack} />
+        <Tab.Screen name="Notícias" component={NoticiasScreen} />
+      </Tab.Navigator>
+    </UserContext.Provider>
   );
 }
 
-// Estilos
 const styles = StyleSheet.create({
   center: {
     flex: 1,
@@ -178,7 +204,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#333131",
     borderRadius: 7,
     alignItems: "center",
-    paddingTop: 10
+    paddingTop: 10,
   },
   capa: {
     width: 150,
@@ -221,10 +247,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#333131', 
-    justifyContent: 'center', 
-    alignItems: 'center',
-},
+  userInfoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 10,
+  },
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
+  },
+  userName: {
+    color: "#F7C21E",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });

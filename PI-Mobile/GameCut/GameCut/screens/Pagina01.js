@@ -1,17 +1,38 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { AuthContext } from "../contexts/AuthContext";
 
 const Entrar = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const { login } = useContext(AuthContext);
 
-  function validarLogin() {
+  async function validarLogin() {
     if (!email || !senha) {
       Alert.alert("Erro", "Preencha todos os campos.");
       return;
     }
-    Alert.alert("Sucesso", `Logado com: ${email}`);
-    // aqui você pode navegar para a tela principal, por ex: navigation.navigate("Home")
+
+    try {
+      const response = await fetch("http://10.0.2.2/pibd/validarLogin.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, senha }),
+      });
+
+      if (!response.ok) {
+        const erroData = await response.json();
+        Alert.alert("Erro", erroData.erro || "Email ou senha incorretos.");
+        return;
+      }
+
+      const userData = await response.json();
+      login(userData); // salva usuário no contexto
+      navigation.navigate("Jogos"); // navega para a home
+    } catch (error) {
+      Alert.alert("Erro", "Erro ao conectar com o servidor.");
+      console.log("Erro login:", error);
+    }
   }
 
   return (

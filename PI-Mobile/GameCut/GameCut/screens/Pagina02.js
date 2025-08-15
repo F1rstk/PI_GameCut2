@@ -7,7 +7,7 @@ const Cadastrar = ({ navigation }) => {
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
 
-  function validarCadastro() {
+  async function validarCadastro() {
     if (!nome || !email || !senha || !confirmarSenha) {
       Alert.alert("Erro", "Preencha todos os campos.");
       return;
@@ -16,8 +16,26 @@ const Cadastrar = ({ navigation }) => {
       Alert.alert("Erro", "Senhas não coincidem.");
       return;
     }
-    Alert.alert("Sucesso", `Conta criada para: ${nome}`);
-    // aqui você pode navegar para a tela de login: navigation.navigate("Entrar")
+
+    try {
+      const response = await fetch("http://10.0.2.2/pibd/cadastrar.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, email, senha, confirmarSenha }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.sucesso) {
+        Alert.alert("Sucesso", data.mensagem);
+        navigation.navigate("Entrar");
+      } else {
+        Alert.alert("Erro", data.erro || "Erro ao cadastrar");
+      }
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível conectar ao servidor");
+      console.error(error);
+    }
   }
 
   return (
