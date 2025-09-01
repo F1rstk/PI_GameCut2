@@ -2,7 +2,7 @@ import React, { useState, useContext } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { AuthContext } from "../contexts/AuthContext";
 
-const Entrar = ({ navigation }) => {
+const Entrar = () => {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const { login } = useContext(AuthContext);
@@ -20,18 +20,36 @@ const Entrar = ({ navigation }) => {
         body: JSON.stringify({ email, senha }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const erroData = await response.json();
-        Alert.alert("Erro", erroData.erro || "Email ou senha incorretos.");
+        Alert.alert("Erro", data?.erro || "Email ou senha incorretos.");
         return;
       }
 
-      const userData = await response.json();
-      login(userData); // salva usuário no contexto
-      navigation.navigate("Jogos"); // navega para a home
+      // Aceita tanto {usuario:{...}} quanto direto {...}
+      const raw = data?.usuario ?? data;
+
+      // Normaliza para o formato que o app usa: { id, nome, email }
+      const userData = {
+        id: raw.id ?? raw.idUsuario ?? raw.idusuario ?? null,
+        nome: raw.nome ?? raw.nomeUsuario ?? raw.nomeusuario ?? "",
+        email: raw.email ?? raw.emailUsuario ?? raw.emailusuario ?? "",
+      };
+
+      if (!userData.id || !userData.nome || !userData.email) {
+        Alert.alert("Erro", "Resposta do servidor inesperada.");
+        return;
+      }
+
+      // Salva no contexto -> o Drawer troca para as telas logadas automaticamente
+      login(userData);
+
+      // Importante: não chamar navigation.navigate("Home"/"Jogos") aqui,
+      // pois o Navigator é trocado após o login e isso causa o erro NAVIGATE.
     } catch (error) {
-      Alert.alert("Erro", "Erro ao conectar com o servidor.");
       console.log("Erro login:", error);
+      Alert.alert("Erro", "Erro ao conectar com o servidor.");
     }
   }
 
@@ -62,7 +80,8 @@ const Entrar = ({ navigation }) => {
         <Text style={styles.botao}>Entrar</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate("Cadastrar")}>
+      {/* ajuste o nome da rota abaixo conforme seu App (ex: "Cadastrar") */}
+      <TouchableOpacity onPress={() => {/* ex.: navigation.navigate("Cadastrar") */}}>
         <Text style={styles.link}>Não tem uma conta? Cadastre-se</Text>
       </TouchableOpacity>
     </View>

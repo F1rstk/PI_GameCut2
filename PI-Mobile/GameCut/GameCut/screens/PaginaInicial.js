@@ -1,3 +1,4 @@
+// PaginaInicial.js
 import React, { useEffect, useState, useContext } from "react";
 import {
   View,
@@ -7,23 +8,24 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  TextInput,
+  ScrollView,
 } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
 import { AuthContext } from "../contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons"; // Ícones
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
-
 const RAWG_API_KEY = "2bf7427a54a148aa9674a33abf59fa0a";
 const UserContext = React.createContext();
 
+// Função auxiliar: busca capa do jogo na API RAWG
 async function fetchCapaRawg(nome) {
   try {
     const response = await fetch(
-      `https://api.rawg.io/api/games?search=${encodeURIComponent(
-        nome
-      )}&key=${RAWG_API_KEY}`
+      `https://api.rawg.io/api/games?search=${encodeURIComponent(nome)}&key=${RAWG_API_KEY}`
     );
     const json = await response.json();
     if (json.results && json.results.length > 0) {
@@ -36,6 +38,7 @@ async function fetchCapaRawg(nome) {
   }
 }
 
+// Tela de listagem de jogos
 function JogosScreen({ navigation }) {
   const [jogos, setJogos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,20 +101,216 @@ function JogosScreen({ navigation }) {
     />
   );
 }
-
+// Tela de detalhes de um jogo
 function DetalhesJogo({ route }) {
   const { jogo } = route.params;
+  const { user } = useContext(AuthContext);
+  const [nota, setNota] = useState("");
+  const [comentario, setComentario] = useState("");
+  const [avaliacoes, setAvaliacoes] = useState([]);
+  const [editandoId, setEditandoId] = useState(null);
+  const [novaNota, setNovaNota] = useState("");
+  const [novoComentario, setNovoComentario] = useState("");
+
+  useEffect(() => {
+    carregarAvaliacoes();
+  }, []);
+
+  const carregarAvaliacoes = async () => {
+    try {
+      const response = await fetch(
+        `http://10.0.2.2/pibd/getAvaliacoes.php?jogo_id=${jogo.id}`
+      );
+      const data = await response.json();
+      setAvaliacoes(data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const enviarAvaliacao = async () => {
+    if (!nota || isNaN(nota) || nota < 0 || nota > 5) {
+      alert("Digite uma nota válida entre 0 e 5.");
+      return;
+    }
+    try {
+      const response = await fetch(
+        "http://10.0.2.2/pibd/salvarAvaliacao.php",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `idUsuario=${user.id}&idJogo=${jogo.id}&notaAvaliacao=${nota}&descricaoAvaliacao=${comentario}`,
+        }
+      );
+      const data = await response.json();
+      if (data.success) {
+        setNota("");
+        setComentario("");
+        carregarAvaliacoes();
+      } else {
+        alert("Erro ao salvar avaliação.");
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const salvarEdicao = async (avaliacaoId) => {
+    if (!novaNota || isNaN(novaNota) || novaNota < 0 || novaNota > 5) {
+      alert("Digite uma nota válida entre 0 e 5.");
+      return;
+    }
+    try {
+      const res = await fetch("http://10.0.2.2/pibd/editarAvaliacao.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `idAvaliacao=${avaliacaoId}&nota=${novaNota}&comentario=${encodeURIComponent(
+          novoComentario
+        )}`,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditandoId(null);
+        setNovaNota("");
+        setNovoComentario("");
+        carregarAvaliacoes();
+      } else {
+        alert("Erro ao editar avaliação.");
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const apagarAvaliacao = async (avaliacaoId) => {
+    try {
+      const res = await fetch("http://10.0.2.2/pibd/apagarAvaliacao.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `idAvaliacao=${avaliacaoId}`,
+      });
+      const data = await res.json();
+      if (data.success) {
+        carregarAvaliacoes();
+      } else {
+        alert("Erro ao apagar avaliação.");
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   return (
-    <View style={styles.detalhesContainer}>
-      {jogo.capa && <Image source={{ uri: jogo.capa }} style={styles.capaGrande} />}
+    <ScrollView
+      style={styles.detalhesContainer}
+      contentContainerStyle={{ paddingBottom: 20 }}
+    >
+      {jogo.capa && (
+        <Image source={{ uri: jogo.capa }} style={styles.capaGrande} />
+      )}
       <Text style={styles.nomeJogoDetalhes}>{jogo.nome}</Text>
       <Text style={styles.texto}>Gênero: {jogo.genero}</Text>
       <Text style={styles.texto}>Desenvolvedora: {jogo.desenvolvedora}</Text>
       <Text style={styles.texto}>Descrição: {jogo.descricao}</Text>
-    </View>
+
+      {/* Avaliação */}
+      <Text style={styles.subtitulo}>Avaliar este jogo</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nota (0 a 5)"
+        keyboardType="numeric"
+        value={nota}
+        onChangeText={setNota}
+      />
+      <TextInput
+        style={[styles.input, { height: 80 }]}
+        placeholder="Escreva um comentário..."
+        multiline
+        value={comentario}
+        onChangeText={setComentario}
+      />
+      <TouchableOpacity
+        style={[styles.botao, { marginBottom: 15 }]}
+        onPress={enviarAvaliacao}
+      >
+        <Text style={styles.textoBotao}>Enviar Avaliação</Text>
+      </TouchableOpacity>
+
+      {/* Lista de comentários */}
+      <Text style={styles.subtitulo}>Comentários</Text>
+      {avaliacoes.length === 0 && (
+        <Text style={styles.texto}>Nenhuma avaliação ainda.</Text>
+      )}
+      <FlatList
+        data={avaliacoes}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.comentario}>
+            {editandoId === item.idAvaliacao ? (
+              <>
+                <TextInput
+                  style={[styles.input, { marginBottom: 5 }]}
+                  keyboardType="numeric"
+                  value={novaNota}
+                  onChangeText={setNovaNota}
+                />
+                <TextInput
+                  style={[styles.input, { height: 60 }]}
+                  multiline
+                  value={novoComentario}
+                  onChangeText={setNovoComentario}
+                />
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <TouchableOpacity
+                    style={[styles.botao, { flex: 1, marginRight: 5 }]}
+                    onPress={() => salvarEdicao(item.idAvaliacao)}
+                  >
+                    <Text style={styles.textoBotao}>Salvar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.botao, { flex: 1, backgroundColor: "#999" }]}
+                    onPress={() => setEditandoId(null)}
+                  >
+                    <Text style={styles.textoBotao}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={styles.usuario}>
+                    {item.nomeUsuario} - Nota: {item.notaAvaliacao}
+                  </Text>
+                  {item.idUsuario === user.id && (
+                    <View style={{ flexDirection: "row" }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditandoId(item.idAvaliacao);
+                          setNovaNota(item.notaAvaliacao.toString());
+                          setNovoComentario(item.descricaoAvaliacao);
+                        }}
+                        style={{ marginRight: 10 }}
+                      >
+                        <Ionicons name="pencil" size={20} color="black" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => apagarAvaliacao(item.idAvaliacao)}
+                      >
+                        <Ionicons name="trash" size={20} color="red" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.texto}>{item.descricaoAvaliacao}</Text>
+              </>
+            )}
+          </View>
+        )}
+      />
+    </ScrollView>
   );
 }
-
+// Tela de Notícias
 function NoticiasScreen() {
   return (
     <View style={styles.center}>
@@ -120,8 +319,10 @@ function NoticiasScreen() {
   );
 }
 
+// Stack de Jogos
 function JogosStack() {
   const user = useContext(UserContext);
+  const nomeHeader = user?.nome ? user.nome.substring(0, 6) : "Usuário";
 
   return (
     <Stack.Navigator
@@ -138,11 +339,11 @@ function JogosStack() {
                 source={
                   user.avatar
                     ? { uri: user.avatar }
-                    : require("../assets/user.jpg") // padrão se não tiver avatar
+                    : require("../assets/user.jpg")
                 }
                 style={styles.userAvatar}
               />
-              <Text style={styles.userName}>{user.nome}</Text>
+              <Text style={styles.userName}>{nomeHeader}</Text>
             </TouchableOpacity>
           ) : null,
       })}
@@ -166,12 +367,17 @@ function JogosStack() {
   );
 }
 
+// Tela principal com abas (Bottom Tabs)
 export default function PaginaInicial() {
-  const { user } = useContext(AuthContext); // pega usuário logado do contexto
+  const { user } = useContext(AuthContext);
 
-  // Aqui definimos um avatar padrão caso o usuário não tenha
   const userComAvatar = user
-    ? { ...user, avatar: user.avatar || "https://uploads.jovemnerd.com.br/wp-content/uploads/2023/10/004__108uf17.webp" }
+    ? {
+        ...user,
+        avatar:
+          user.avatar ||
+          "https://uploads.jovemnerd.com.br/wp-content/uploads/2023/10/004__108uf17.webp",
+      }
     : null;
 
   return (
@@ -184,13 +390,30 @@ export default function PaginaInicial() {
           tabBarInactiveTintColor: "#D9D9D9",
         }}
       >
-        <Tab.Screen name="Jogos" component={JogosStack} />
-        <Tab.Screen name="Notícias" component={NoticiasScreen} />
+        <Tab.Screen
+          name="Jogos"
+          component={JogosStack}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="game-controller" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Notícias"
+          component={NoticiasScreen}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="newspaper" size={size} color={color} />
+            ),
+          }}
+        />
       </Tab.Navigator>
     </UserContext.Provider>
   );
 }
 
+// Estilos
 const styles = StyleSheet.create({
   center: {
     flex: 1,
@@ -227,11 +450,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#333131",
     padding: 15,
-    alignItems: "center",
   },
   capaGrande: {
-    width: 300,
-    height: 300,
+    width: "100%",
+    height: 250,
     borderRadius: 10,
     marginBottom: 15,
   },
@@ -240,12 +462,48 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#F7C21E",
     marginBottom: 10,
+    textAlign: "center",
   },
   texto: {
     color: "#fff",
     fontSize: 16,
     marginBottom: 8,
     textAlign: "center",
+  },
+  subtitulo: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#F7C21E",
+    marginVertical: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    color: "#000",
+    backgroundColor: "#fff",
+  },
+  botao: {
+    backgroundColor: "#F7C21E",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  textoBotao: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  comentario: {
+    backgroundColor: "#444",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  usuario: {
+    fontWeight: "bold",
+    color: "#F7C21E",
   },
   userInfoContainer: {
     flexDirection: "row",

@@ -1,10 +1,12 @@
 import React, { useContext } from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
-
-const UserContext = React.createContext();
+import { AuthContext } from "../contexts/AuthContext"; // importa contexto real
 
 export default function Perfil({ navigation }) {
-  const user = useContext(UserContext);
+  const { user } = useContext(AuthContext); // pega usuário logado
+
+  // Limita o nome a 15 caracteres
+  const nomeExibido = user?.nome ? user.nome.substring(0, 15) : "Usuário";
 
   return (
     <View style={styles.container}>
@@ -16,12 +18,14 @@ export default function Perfil({ navigation }) {
         }
         style={styles.avatar}
       />
-      <Text style={styles.nome}>{user?.nome || "Usuário"}</Text>
+      <Text style={styles.nome}>{nomeExibido}</Text> {/* mostra o nome do usuário */}
 
       {/* Botão para voltar para Jogos */}
       <TouchableOpacity
         style={styles.botaoVoltar}
-        onPress={() => navigation.navigate("Jogos", { screen: "JogosLista" })}
+        onPress={() =>
+          navigation.getParent()?.navigate("Jogos", { screen: "JogosLista" })
+        }
       >
         <Text style={styles.textoBotao}>Voltar para Jogos</Text>
       </TouchableOpacity>
@@ -31,7 +35,7 @@ export default function Perfil({ navigation }) {
         style={styles.botaoLogout}
         onPress={() => {
           alert("Logout executado - implemente a lógica real");
-          navigation.goBack(); // ou vá para tela de login
+          navigation.goBack();
         }}
       >
         <Text style={styles.textoBotao}>Sair</Text>
@@ -59,6 +63,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#F7C21E",
     marginBottom: 40,
+    textAlign: "center",
   },
   botaoVoltar: {
     backgroundColor: "#F7C21E",
@@ -77,5 +82,6 @@ const styles = StyleSheet.create({
     color: "#333131",
     fontSize: 18,
     fontWeight: "bold",
+    textAlign: "center",
   },
 });
